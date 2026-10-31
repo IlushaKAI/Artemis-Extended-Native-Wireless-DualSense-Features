@@ -419,6 +419,7 @@ public class MoonBridge {
 
     // Artemis Extended client microphone packet: [sequence, mono, flags, Opus].
     public static native int sendMicrophonePacket(byte[] packet);
+    public static native int sendDualSenseFeedbackPolicy(boolean enabled, int requestId);
 
     public static native String getStageName(int stage);
 

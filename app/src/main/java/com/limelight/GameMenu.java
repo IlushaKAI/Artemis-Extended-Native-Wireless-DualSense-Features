@@ -3909,6 +3909,9 @@ public class GameMenu implements Game.GameMenuCallbacks {
                     () -> showMouseModeMenu(device)));
         }
 
+        options.add(new MenuOption("native_feedback_traffic",
+                game.getString(R.string.native_feedback_quick_menu, game.nativeFeedbackTrafficStatus()),
+                true, game::cycleNativeFeedbackTraffic));
         options.add(new MenuOption(ADV_HUD, getString(R.string.game_menu_toggle_hud), true, game::toggleHUD));
         options.add(new MenuOption(ADV_FLOATING_BUTTON, getString(R.string.game_menu_toggle_floating_button), true,
                 game::toggleFloatingButtonVisibility));

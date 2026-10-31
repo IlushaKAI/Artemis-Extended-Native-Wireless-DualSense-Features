@@ -1,0 +1,10 @@
+<resources>
+    <string name="native_dualsense_enabled">Native DualSense emulation</string>
+    <string name="native_dualsense_enabled_summary">Report a connected DualSense as a native controller to compatible Apollo. Turn off for DualShock 4 compatibility; restart the game/stream after changing controller type.</string>
+    <string name="native_feedback_title">Native HD haptics traffic</string>
+    <string name="native_feedback_summary">Automatic pauses the extra controller audio/HD haptics on poor connections, high latency or stream bitrates below 12 Mbps. It resumes after 20 stable seconds. Requires the matching Apollo host. Buttons, ordinary rumble and adaptive triggers continue.</string>
+    <string-array name="native_feedback_names"><item>Automatic — protect the connection</item><item>Always on</item><item>Off</item></string-array>
+    <string-array name="native_feedback_values"><item>auto</item><item>always</item><item>off</item></string-array>
+    <string name="native_feedback_quick_menu">HD haptics traffic: %1$s (change)</string>
+    <string name="native_feedback_changed">HD haptics traffic: %1$s</string>
+</resources>

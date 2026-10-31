@@ -9,6 +9,20 @@
         android:title="@string/category_extended_controller"
         app:initialExpandedChildrenCount="4"
         app:iconSpaceReserved="false">
+        <CheckBoxPreference
+            android:key="native_dualsense_emulation"
+            android:defaultValue="true"
+            android:title="@string/native_dualsense_enabled"
+            android:summary="@string/native_dualsense_enabled_summary"
+            app:iconSpaceReserved="false" />
+        <ListPreference
+            android:key="native_feedback_traffic"
+            android:defaultValue="auto"
+            android:title="@string/native_feedback_title"
+            android:summary="@string/native_feedback_summary"
+            android:entries="@array/native_feedback_names"
+            android:entryValues="@array/native_feedback_values"
+            app:iconSpaceReserved="false" />
         <ListPreference
             android:defaultValue="auto"
             android:entries="@array/controller_emulation_names"
@@ -1077,6 +1091,7 @@
         <com.limelight.preferences.WebLauncherPreference
             url="https://github.com/ClassicOldSong/moonlight-android/releases"
             android:key="option_software_release"
+            android:enabled="false"
             android:summary="@string/summary_software_update"
             android:title="@string/title_software_update"
             app:iconSpaceReserved="false" />
@@ -1084,6 +1099,7 @@
         <com.limelight.preferences.WebLauncherPreference
             url="@string/obtainium_app_url"
             android:key="option_follow_update"
+            android:enabled="false"
             android:summary="@string/summary_follow_update"
             android:title="@string/title_follow_update"
             app:iconSpaceReserved="false" />

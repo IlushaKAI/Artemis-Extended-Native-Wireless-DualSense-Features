@@ -182,9 +182,17 @@ object DualSenseAudioBridge {
         }
     }
 
+    @Volatile private var networkAllowed = true
+
+    @JvmStatic @Synchronized fun setNetworkAllowed(allowed: Boolean) {
+        if (networkAllowed == allowed) return
+        networkAllowed = allowed
+        if (!allowed && initialized) stop()
+    }
+
     @JvmStatic @Synchronized fun receive(controller: Int, sequence: Int, frameCount: Int,
                                          channels: Int, flags: Int, pcm: ByteArray?) {
-        if (!initialized || pcm == null || channels != 4 || frameCount <= 0 ||
+        if (!networkAllowed || !initialized || pcm == null || channels != 4 || frameCount <= 0 ||
             pcm.size != frameCount * channels * 2) return
 
         packetsReceived++

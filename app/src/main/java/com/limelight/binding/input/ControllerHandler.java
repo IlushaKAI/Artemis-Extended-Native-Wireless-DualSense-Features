@@ -88,6 +88,9 @@ public class ControllerHandler implements InputManager.InputDeviceListener, UsbD
     private byte requestedExtendedEmulationMode(byte detectedType) {
         String mode = PreferenceManager.getDefaultSharedPreferences(activityContext)
                 .getString(CONTROLLER_EMULATION_MODE_PREF, "auto");
+        if (!PreferenceManager.getDefaultSharedPreferences(activityContext).getBoolean(
+                com.limelight.dualsense.NativeFeedbackPolicy.NATIVE_CONTROLLER_PREF, true) &&
+                ("ds5".equals(mode) || ("auto".equals(mode) && detectedType == MoonBridge.LI_CTYPE_PS5))) return EXTENDED_EMULATION_DS4;
         if ("xbox".equals(mode)) return EXTENDED_EMULATION_XBOX;
         if ("ds4".equals(mode)) return EXTENDED_EMULATION_DS4;
         if ("ds5".equals(mode)) return EXTENDED_EMULATION_DS5;

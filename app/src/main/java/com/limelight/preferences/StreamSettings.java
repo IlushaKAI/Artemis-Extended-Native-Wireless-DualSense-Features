@@ -150,6 +150,7 @@ public class StreamSettings extends AppCompatActivity {
 
     @Override
     // NOTE: This will NOT be called on Android 13+ with android:enableOnBackInvokedCallback="true"
+    @android.annotation.SuppressLint("MissingSuperCall") // Intentionally finish settings and apply the locale workflow.
     public void onBackPressed() {
         finish();
 

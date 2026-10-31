@@ -275,6 +275,15 @@ Java_com_limelight_nvstream_jni_MoonBridge_guessControllerHasShareButton(JNIEnv 
 }
 
 JNIEXPORT jint JNICALL
+Java_com_limelight_nvstream_jni_MoonBridge_sendDualSenseFeedbackPolicy(JNIEnv *env, jclass clazz,
+        jboolean enabled, jint requestId) {
+    // Version, enable, six-second lease, request ID, reserved. Existing encrypted control connection only.
+    unsigned char payload[8] = {1, enabled ? 1 : 0, 0x70, 0x17,
+            (unsigned char) requestId, (unsigned char) (requestId >> 8), 0, 0};
+    return LiSendRawControlStreamPacket(0x5506, payload, sizeof(payload));
+}
+
+JNIEXPORT jint JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_sendMicrophonePacket(JNIEnv *env, jclass clazz,
                                                                   jbyteArray packet) {
     if (packet == NULL) return -1;

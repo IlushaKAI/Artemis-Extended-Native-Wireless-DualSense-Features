@@ -175,6 +175,55 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private static final int FIVE_FINGER_TAP_THRESHOLD = 300;
 
     private Handler timerHandler;
+    private final com.limelight.dualsense.NativeFeedbackPolicy nativeFeedbackPolicy =
+            new com.limelight.dualsense.NativeFeedbackPolicy();
+    private volatile boolean nativeFeedbackConnectionPoor;
+    private boolean nativeFeedbackRequested;
+    private volatile int nativeFeedbackRequestId;
+    private long nativeFeedbackLastSentMs;
+    private volatile long nativeFeedbackLastAckMs;
+    private volatile boolean nativeFeedbackAckEnabled;
+    private final Runnable nativeFeedbackTick = new Runnable() {
+        @Override public void run() {
+            if (!connected) return;
+            long now = android.os.SystemClock.elapsedRealtime();
+            android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(Game.this);
+            String mode = prefs.getString(com.limelight.dualsense.NativeFeedbackPolicy.MODE_PREF, "auto");
+            long info = MoonBridge.getEstimatedRttInfo();
+            int rtt = info == -1 ? -1 : (int) (info >>> 32);
+            boolean enabled = nativeFeedbackPolicy.evaluate(mode,
+                    prefs.getBoolean(com.limelight.dualsense.NativeFeedbackPolicy.NATIVE_CONTROLLER_PREF, true),
+                    !"off".equals(prefConfig.dualSenseAudioMode), prefConfig.bitrate,
+                    nativeFeedbackConnectionPoor, rtt, now);
+            if (now - nativeFeedbackLastSentMs >= 2000 || enabled != nativeFeedbackRequested) {
+                nativeFeedbackRequested = enabled;
+                nativeFeedbackRequestId = (nativeFeedbackRequestId + 1) & 0xffff;
+                MoonBridge.sendDualSenseFeedbackPolicy(enabled, nativeFeedbackRequestId);
+                nativeFeedbackLastSentMs = now;
+            }
+            DualSenseAudioBridge.setNetworkAllowed(enabled && nativeFeedbackAckEnabled &&
+                    now - nativeFeedbackLastAckMs < 6000);
+            timerHandler.postDelayed(this, 500);
+        }
+    };
+
+    public String nativeFeedbackTrafficStatus() {
+        if (nativeFeedbackRequested && (nativeFeedbackLastAckMs == 0 ||
+                android.os.SystemClock.elapsedRealtime() - nativeFeedbackLastAckMs >= 6000)) {
+            return "Waiting for compatible Apollo host";
+        }
+        return nativeFeedbackPolicy.reason();
+    }
+
+    public void cycleNativeFeedbackTraffic() {
+        android.content.SharedPreferences prefs = androidx.preference.PreferenceManager.getDefaultSharedPreferences(this);
+        String current = prefs.getString(com.limelight.dualsense.NativeFeedbackPolicy.MODE_PREF, "auto");
+        String next = "auto".equals(current) ? "always" : "always".equals(current) ? "off" : "auto";
+        prefs.edit().putString(com.limelight.dualsense.NativeFeedbackPolicy.MODE_PREF, next).apply();
+        timerHandler.removeCallbacks(nativeFeedbackTick);
+        if (connected) timerHandler.post(nativeFeedbackTick);
+        Toast.makeText(this, getString(R.string.native_feedback_changed, next), Toast.LENGTH_SHORT).show();
+    }
 
     private ControllerHandler controllerHandler;
     private KeyboardTranslator keyboardTranslator;
@@ -432,6 +481,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
         // Read the stream preferences
         prefConfig = PreferenceConfiguration.readPreferences(this);
+        DualSenseAudioBridge.setNetworkAllowed(false);
         DualSenseAudioBridge.configure(prefConfig.dualSenseAudioMode,
                 prefConfig.dualSenseControllerVolume);
         DualSenseMicrophoneBridge.configure(prefConfig.dualSenseMicrophoneEnabled ?
@@ -3916,6 +3966,8 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     }
 
     private void stopConnection() {
+        timerHandler.removeCallbacks(nativeFeedbackTick);
+        DualSenseAudioBridge.setNetworkAllowed(false);
         if (connecting || connected) {
             connecting = connected = false;
             updatePipAutoEnter();
@@ -4116,6 +4168,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
     @Override
     public void connectionStatusUpdate(final int connectionStatus) {
+        nativeFeedbackConnectionPoor = connectionStatus == MoonBridge.CONN_STATUS_POOR;
         runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -4156,6 +4209,10 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
 
                 connected = true;
                 connecting = false;
+                nativeFeedbackLastAckMs = nativeFeedbackLastSentMs = 0;
+                nativeFeedbackAckEnabled = false;
+                timerHandler.removeCallbacks(nativeFeedbackTick);
+                timerHandler.post(nativeFeedbackTick);
                 startClientMicrophoneCapture();
                 updatePipAutoEnter();
 
@@ -4330,6 +4387,16 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     public void setAdaptiveTriggers(short controllerNumber, byte eventFlags,
                                     byte typeLeft, byte typeRight,
                                     byte[] left, byte[] right) {
+        if ((eventFlags & 0xff) == 0x40 && (typeLeft & 0xff) == 0x42 && (typeRight & 0xff) == 0x57 &&
+                left != null && left.length >= 6 && left[0] == 0x50 && left[1] == 1) {
+            int request = (left[4] & 255) | ((left[5] & 255) << 8);
+            if (request == nativeFeedbackRequestId && left[3] == 0) {
+                nativeFeedbackAckEnabled = left[2] != 0;
+                nativeFeedbackLastAckMs = android.os.SystemClock.elapsedRealtime();
+            }
+            return;
+        }
+
         LimeLog.info("Host DualSense extension: controller=" + controllerNumber +
                 ", flags=0x" + Integer.toHexString(eventFlags & 0xFF) +
                 ", leftType=0x" + Integer.toHexString(typeLeft & 0xFF) +

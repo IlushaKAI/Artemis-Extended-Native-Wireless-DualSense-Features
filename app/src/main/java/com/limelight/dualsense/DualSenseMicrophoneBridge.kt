@@ -263,6 +263,10 @@ object DualSenseMicrophoneBridge {
             AudioRecord(MediaRecorder.AudioSource.VOICE_COMMUNICATION, 48_000,
                 AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT, bufferSize)
         }
+    } catch (_: SecurityException) {
+        // RECORD_AUDIO can be revoked between the start check and recorder construction.
+        LimeLog.warning("Microphone permission unavailable; capture was not started")
+        null
     } catch (error: Throwable) {
         LimeLog.warning("DualSense microphone recorder creation failed: ${error.message}")
         null
