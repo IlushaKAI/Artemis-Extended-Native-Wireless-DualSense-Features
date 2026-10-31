@@ -12,11 +12,11 @@ Upstream authors retain credit and their original licence terms. These builds ar
 
 Every workflow run, downloaded artifact and build notice is labelled **Personal Development / Testing Preview — UNOFFICIAL**. Future release descriptions must repeat this disclaimer and be marked as pre-releases.
 
-Suggested release title: **Artemis Android v0.2.0 — Personal Development & Testing Preview (Unofficial)**.
+Initial prerelease: [v0.2.0-personal-preview.1](https://github.com/R3VALATiON/Artemis-Extended-Native-Wireless-DualSense-Features/releases/tag/v0.2.0-personal-preview.1), with the ARM64 APK, changelog, source revision, provenance and SHA-256 checksums.
 
 ## Current validation
 
-The local ARM64 Android APK compiled. Twelve targeted report-builder/startup tests and 23 connection-quality policy checks passed. Full upstream lint is not clean; remaining findings and hardware-test limitations are documented with the implementation.
+The published ARM64 Android APK compiled successfully in GitHub Actions. Its signature and application metadata were checked during earlier artifact verification. Twelve targeted report-builder/startup tests and 23 connection-quality policy checks passed. Full upstream lint is not clean; remaining findings and hardware-test limitations are documented with the implementation.
 
 Physical controller feedback, native game recognition, connection-quality switching and the matched Windows driver stack have not yet been validated on the user's hardware. Successful compilation is not proof that those hardware paths work.
 
