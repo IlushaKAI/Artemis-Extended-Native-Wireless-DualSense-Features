@@ -12,7 +12,7 @@ android {
         minSdk 21
         targetSdk 34
 
-        versionName "20.2.6-raj-ds-0.2.0"
+        versionName "20.2.6-personal-dev-0.2.0"
         versionCode = 57
 
         // Generate native debug symbols to allow Google Play to symbolicate our native crashes
@@ -109,7 +109,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix ".noirdebug"
-            resValue "string", "app_label", "Artemis DS Preview"
+            resValue "string", "app_label", "Artemis DS Personal Test"
             resValue "string", "app_label_root", "Diana (Root)"
             resValue "string", "app_label_game", "Diana (Game)"
 
