@@ -119,8 +119,8 @@ object DirectDualSenseBtReportBuilder
     private val CLICK_TRIGGER = createGameCubeTrigger()
     @Volatile private var persistentPlayerLedBrightness = 0x00
     @Volatile private var persistentPlayerLedMask = 0x04
-    @Volatile private var persistentTriggerSoftnessLevel = 0x00
-    @Volatile private var persistentSoftRumbleReduce = 0x00
+    @Volatile private var persistentTriggerSoftnessLevel = 0x02
+    @Volatile private var persistentSoftRumbleReduce = 0x02
     @Volatile private var persistentLightbarRed = 0x00
     @Volatile private var persistentLightbarGreen = 0x00
     @Volatile private var persistentLightbarBlue = 0x00

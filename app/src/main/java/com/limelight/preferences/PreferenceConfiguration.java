@@ -776,7 +776,27 @@ private static int getFramePacingValue(Context context) {
         return readPreferences(context, null);
     }
 
+    // The console gives 1080p in games whatever is asked, and 30 Mbit/s with HEVC and without HDR looked best on it.
+    private static void applyConsoleProfile(Context context) {
+        SharedPreferences base = android.preference.PreferenceManager.getDefaultSharedPreferences(context);
+        if (base.getBoolean("ps5_profile_1", false)) {
+            return;
+        }
+        base.edit()
+                .putString(RESOLUTION_PREF_STRING, "1920x1080")
+                .putString(FPS_PREF_STRING, "60")
+                .putInt(BITRATE_PREF_STRING, 30000)
+                .putString(VIDEO_FORMAT_PREF_STRING, "forceh265")
+                .putBoolean(ENABLE_HDR_PREF_STRING, false)
+                .putString(FRAME_PACING_PREF_STRING, "balanced")
+                .putBoolean(LATENCY_TOAST_PREF_STRING, true)
+                .putBoolean(ENABLE_RUMBLE_PREF_STRING, true)
+                .putBoolean("ps5_profile_1", true)
+                .commit();
+    }
+
     public static PreferenceConfiguration readPreferences(Context context, SharedPreferences prefs) {
+        applyConsoleProfile(context);
         if (prefs == null) {
             prefs = ProfilesManager.getInstance().getOverlayingSharedPreferences(context);
         }

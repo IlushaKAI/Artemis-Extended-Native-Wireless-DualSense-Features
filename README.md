@@ -1,5 +1,17 @@
 # Artemis Android — Personal Development & Testing Fork
 
+> **This branch, `prospero-ps5`, is tuned for streaming from a PS5 with [ProsperoSunshine](https://github.com/IlushaKAI/ProsperoSunshine/tree/firmware-9.60).**
+> It is based on R3VALATiON's `feature/native-dualsense-adaptive` and is unofficial too, not an official Moonlight, Artemis or Sony product.
+>
+> - Sets 1080p60, HEVC, 30 Mbit/s, no HDR and balanced frame pacing once, at the first start. All of it can be changed afterwards.
+> - Turns the DualSense's trigger and rumble power down by 3 of 8 steps. The console does this by its own setting; the client sent full power.
+>
+> Tested by one person, on a Galaxy S23 with Android 17 and a DualSense over Bluetooth. Rumble there still needs **Emulate rumble support with
+> vibration** turned on, for a reason not understood yet.
+>
+> Build: `gradlew -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false assembleNonRoot_gameDebug`. Without the second
+> option Android refuses to install the APK. The result is in `app/build/intermediates/apk/`.
+
 > [!WARNING]
 > **UNOFFICIAL PERSONAL DEVELOPMENT / TESTING BUILD — R3VALATiON**
 >

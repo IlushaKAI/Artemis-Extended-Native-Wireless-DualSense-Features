@@ -32,7 +32,8 @@ object DualSenseBtOutputBuilder {
         } else {
             0x0F
         }
-        report[4] = if (nativeBluetoothAudio) 0xD5.toByte() else 0x15
+        report[4] = if (nativeBluetoothAudio) 0xD5.toByte() else 0x55
+        if (!nativeBluetoothAudio) report[39] = 0x33 // motor power: triggers and rumble turned down by 3 of 8 steps
         report[5] = config.rightRumble.coerceIn(0, 255).toByte()
         report[6] = config.leftRumble.coerceIn(0, 255).toByte()
         if (nativeBluetoothAudio) {

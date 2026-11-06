@@ -62,8 +62,8 @@ object DirectDualSenseBt {
     private var state = DirectDualSenseBtReportBuilder.PersistentOutputState(
         playerLedBrightness = 0,
         playerLedMask = 0x04,
-        triggerSoftnessLevel = 0,
-        softRumbleReduce = 0,
+        triggerSoftnessLevel = 2,
+        softRumbleReduce = 2,
         lightbarRed = 0,
         lightbarGreen = 0,
         lightbarBlue = 0,
