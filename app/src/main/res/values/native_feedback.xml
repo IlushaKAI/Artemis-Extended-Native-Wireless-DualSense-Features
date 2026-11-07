@@ -1,6 +1,14 @@
 <resources>
     <string name="native_dualsense_enabled">Native DualSense emulation</string>
     <string name="native_dualsense_enabled_summary">Report a connected DualSense as a native controller to compatible Apollo. Turn off for DualShock 4 compatibility; restart the game/stream after changing controller type.</string>
+    <string name="dualsense_hd_frames_title">HD haptics frames per report</string>
+    <string name="dualsense_hd_frames_summary">Two halve the number of Bluetooth writes. Choose one if there is no vibration at all.</string>
+    <string-array name="dualsense_hd_frames_names"><item>Two</item><item>One</item></string-array>
+    <string-array name="dualsense_hd_frames_values"><item>2</item><item>1</item></string-array>
+    <string name="dualsense_hd_buffer_title">HD haptics buffer (Bluetooth)</string>
+    <string name="dualsense_hd_buffer_summary">How much the DualSense holds back before playing. Lower is faster; raise it if the vibration stutters.</string>
+    <string-array name="dualsense_hd_buffer_names"><item>0</item><item>2</item><item>4</item><item>8</item><item>16</item><item>32</item><item>64</item><item>128</item></string-array>
+    <string-array name="dualsense_hd_buffer_values"><item>0</item><item>2</item><item>4</item><item>8</item><item>16</item><item>32</item><item>64</item><item>128</item></string-array>
     <string name="native_feedback_title">Native HD haptics traffic</string>
     <string name="native_feedback_summary">Automatic pauses the extra controller audio/HD haptics on poor connections, high latency or stream bitrates below 12 Mbps. It resumes after 20 stable seconds. Requires the matching Apollo host. Buttons, ordinary rumble and adaptive triggers continue.</string>
     <string-array name="native_feedback_names"><item>Automatic — protect the connection</item><item>Always on</item><item>Off</item></string-array>

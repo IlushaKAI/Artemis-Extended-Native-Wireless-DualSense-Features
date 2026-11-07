@@ -4,10 +4,12 @@
 > It is based on R3VALATiON's `feature/native-dualsense-adaptive` and is unofficial too, not an official Moonlight, Artemis or Sony product.
 >
 > - Sets 1080p60, HEVC, 30 Mbit/s, no HDR and balanced frame pacing once, at the first start. All of it can be changed afterwards.
-> - Turns the DualSense's trigger and rumble power down by 3 of 8 steps. The console does this by its own setting; the client sent full power.
+> - Turns the DualSense's trigger and rumble power down by 3 of 8 steps, or as the host's **Trigger force** says. The console does this by its own setting; the client sent full power. The tester felt little change from it.
+> - Unfinished: HD haptics from ProsperoSunshine, sent two frames per Bluetooth report. An earlier build of this branch gave real but delayed HD vibration; this one gives none. See `docs/re/haptics.md` in the host's fork.
+> - Sends its Bluetooth counters to the host's log every 2 s.
 >
 > Tested by one person, on a Galaxy S23 with Android 17 and a DualSense over Bluetooth. Rumble there still needs **Emulate rumble support with
-> vibration** turned on, for a reason not understood yet.
+> vibration** turned on, for a reason not understood yet. With the DualSense over Bluetooth, the format of its haptics is thanks to SAxense by Sdore (https://apps.sdore.me/SAxense).
 >
 > Build: `gradlew -Pandroid.injected.build.abi=arm64-v8a -Pandroid.injected.testOnly=false assembleNonRoot_gameDebug`. Without the second
 > option Android refuses to install the APK. The result is in `app/build/intermediates/apk/`.

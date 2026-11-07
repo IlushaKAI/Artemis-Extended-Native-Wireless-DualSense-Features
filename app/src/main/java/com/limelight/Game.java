@@ -181,6 +181,7 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean nativeFeedbackRequested;
     private volatile int nativeFeedbackRequestId;
     private long nativeFeedbackLastSentMs;
+    private long nativeFeedbackLastReportMs;
     private volatile long nativeFeedbackLastAckMs;
     private volatile boolean nativeFeedbackAckEnabled;
     private final Runnable nativeFeedbackTick = new Runnable() {
@@ -203,6 +204,11 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
             DualSenseAudioBridge.setNetworkAllowed(enabled && nativeFeedbackAckEnabled &&
                     now - nativeFeedbackLastAckMs < 6000);
+            if (now - nativeFeedbackLastReportMs >= 2000) {
+                nativeFeedbackLastReportMs = now;
+                String report = "v12 want=" + enabled + " ack=" + nativeFeedbackAckEnabled + " " + DualSenseAudioBridge.counters();
+                MoonBridge.sendBluetoothDiagnostics(report.getBytes());
+            }
             timerHandler.postDelayed(this, 500);
         }
     };
@@ -4393,6 +4399,9 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             if (request == nativeFeedbackRequestId && left[3] == 0) {
                 nativeFeedbackAckEnabled = left[2] != 0;
                 nativeFeedbackLastAckMs = android.os.SystemClock.elapsedRealtime();
+                if (left.length >= 7) {
+                    com.limelight.dualsense.DirectDualSenseBt.setMotorPowerReduction(this, left[6] & 0xff);
+                }
             }
             return;
         }

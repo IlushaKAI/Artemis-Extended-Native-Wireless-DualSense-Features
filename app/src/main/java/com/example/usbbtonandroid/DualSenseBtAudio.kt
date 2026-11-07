@@ -42,6 +42,37 @@ object DualSenseBtAudioBuilder {
             packetCounter, speakerOpus, headsetRoute, microphoneEnabled, latencyScale)
     }
 
+    /**
+     * Two 10.667 ms haptics frames in one small report, marked 0xD2 as in the two-frame media report. Halves the number of HID
+     * writes: an Android stack that can't send one every 10.667 ms builds a queue that delays everything behind it, triggers too.
+     */
+    fun writeTwoHapticsFrames(report: ByteArray, first: ByteArray, second: ByteArray, sequence: Int, packetCounter: Int,
+                              microphoneEnabled: Boolean, latencyScale: Int, crc: CRC32): ByteArray {
+        require(first.size == HAPTICS_BYTES_PER_REPORT && second.size == HAPTICS_BYTES_PER_REPORT)
+        require(report.size == 206)
+        report.fill(0)
+        report[0] = 0x33
+        report[1] = ((sequence and 0x0f) shl 4).toByte()
+        report[2] = 0x91.toByte()
+        report[3] = 7
+        report[4] = if (microphoneEnabled) 0xff.toByte() else 0xfe.toByte()
+        report.fill(latencyScale.coerceIn(0, 0xff).toByte(), 5, 10)
+        report[10] = packetCounter.toByte()
+        report[11] = 0xd2.toByte()
+        report[12] = 64
+        first.copyInto(report, 13)
+        second.copyInto(report, 77)
+        crc.reset()
+        crc.update(0xa2)
+        crc.update(report, 0, report.size - 4)
+        val value = crc.value
+        report[report.size - 4] = value.toByte()
+        report[report.size - 3] = (value ushr 8).toByte()
+        report[report.size - 2] = (value ushr 16).toByte()
+        report[report.size - 1] = (value ushr 24).toByte()
+        return report
+    }
+
     /** Writes a live one-frame report into a reusable transport buffer. */
     fun write(report: ByteArray, haptics: ByteArray, sequence: Int, packetCounter: Int,
               speakerOpus: ByteArray? = null, headsetRoute: Boolean = false,

@@ -9,6 +9,7 @@ data class DualSenseOutputConfig(
     val leftTriggerMode: TriggerMode = TriggerMode.OFF,
     val rightTriggerMode: TriggerMode = TriggerMode.OFF,
     val triggerStrength: Int = 100,
+    val motorPowerReduction: Int = 3,
     val leftTriggerEffect: ByteArray? = null,
     val rightTriggerEffect: ByteArray? = null
 )
@@ -33,7 +34,8 @@ object DualSenseBtOutputBuilder {
             0x0F
         }
         report[4] = if (nativeBluetoothAudio) 0xD5.toByte() else 0x55
-        if (!nativeBluetoothAudio) report[39] = 0x33 // motor power: triggers and rumble turned down by 3 of 8 steps
+        // Motor power, 0 to 7 eighths down. Which half of the byte is the triggers is told differently in different places, so both.
+        if (!nativeBluetoothAudio) report[39] = (config.motorPowerReduction.coerceIn(0, 7) * 0x11).toByte()
         report[5] = config.rightRumble.coerceIn(0, 255).toByte()
         report[6] = config.leftRumble.coerceIn(0, 255).toByte()
         if (nativeBluetoothAudio) {

@@ -779,6 +779,20 @@ private static int getFramePacingValue(Context context) {
     // The console gives 1080p in games whatever is asked, and 30 Mbit/s with HEVC and without HDR looked best on it.
     private static void applyConsoleProfile(Context context) {
         SharedPreferences base = android.preference.PreferenceManager.getDefaultSharedPreferences(context);
+        if (!base.getBoolean("ps5_profile_3", false)) {
+            // A console streams no sound for the controller's speaker, so its reports only need the haptics.
+            base.edit()
+                    .putString(DUALSENSE_AUDIO_MODE_PREF_STRING, "haptics_only")
+                    .putBoolean("ps5_profile_3", true)
+                    .commit();
+        }
+        if (!base.getBoolean("ps5_profile_2", false)) {
+            // The host sends the waveform only to a client that asks, and the automatic policy waits 20 s and more to ask.
+            base.edit()
+                    .putString(com.limelight.dualsense.NativeFeedbackPolicy.MODE_PREF, "always")
+                    .putBoolean("ps5_profile_2", true)
+                    .commit();
+        }
         if (base.getBoolean("ps5_profile_1", false)) {
             return;
         }

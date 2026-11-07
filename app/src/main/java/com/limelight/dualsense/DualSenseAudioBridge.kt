@@ -32,6 +32,7 @@ object DualSenseAudioBridge {
     // UI 100% on the controller membrane means the former 30% PCM gain:
     // -10.46 dB relative to the old full-scale slider.
     private const val INTERNAL_SPEAKER_MAX_GAIN_PERCENT = 30
+    private const val DIRECT_HAPTICS_FLAG = 0x04
 
     private lateinit var appContext: Context
     private lateinit var usbManager: UsbManager
@@ -190,8 +191,37 @@ object DualSenseAudioBridge {
         if (!allowed && initialized) stop()
     }
 
+    private var callsSeen = 0L
+    private var directSeen = 0L
+    private var soundSeen = 0L
+    private var lastShape = "none"
+
+    /** What arrived and where it went, for the host's log. */
+    @JvmStatic @Synchronized fun counters(): String =
+        "calls=$callsSeen direct=$directSeen sound=$soundSeen shape=$lastShape allowed=$networkAllowed init=$initialized " +
+            "mode=$mode bt=$btNativeReports drop=$btNativeDrops connected=${initialized && DirectDualSenseBt.isConnected(appContext)}"
+
     @JvmStatic @Synchronized fun receive(controller: Int, sequence: Int, frameCount: Int,
                                          channels: Int, flags: Int, pcm: ByteArray?) {
+        callsSeen++
+        lastShape = "$frameCount/$channels/$flags/${pcm?.size ?: -1}"
+        // ProsperoSunshine's direct form: two frames as the controller takes them, nothing to resample.
+        if (flags == DIRECT_HAPTICS_FLAG && channels == 2 && frameCount == 32 && pcm != null && pcm.size == 128) {
+            directSeen++
+            if (!networkAllowed || !initialized || mode == "off") return
+            packetsReceived++
+            lastPacketAtMs = SystemClock.elapsedRealtime()
+            streamActive = true
+            // Long silence sends nothing, so that a queue in the Bluetooth stack can drain and triggers stay quick.
+            if (pcm.all { it == 0.toByte() }) return
+            soundSeen++
+            lastNativeBtReportAtMs = lastPacketAtMs
+            for (offset in intArrayOf(0, 64)) {
+                val sent = DirectDualSenseBt.sendNativeAudio(appContext, pcm.copyOfRange(offset, offset + 64), null)
+                if (sent) btNativeReports++ else btNativeDrops++
+            }
+            return
+        }
         if (!networkAllowed || !initialized || pcm == null || channels != 4 || frameCount <= 0 ||
             pcm.size != frameCount * channels * 2) return
 
@@ -554,6 +584,8 @@ object DualSenseAudioBridge {
                     if (reportPosition == report.size) {
                         val hasHaptics = report.any { it != 0.toByte() }
                         val speaker = if (includeSpeaker) latestSpeakerOpus else null
+                        // Long silence sends nothing, so that a queue in the Bluetooth stack can drain and triggers stay quick.
+                        // DirectDualSenseBt keeps the stream going for a moment after the last sound.
                         if (hasHaptics || speaker != null) {
                             sendReport(report.copyOf(), speaker)
                         }

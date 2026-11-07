@@ -86,6 +86,16 @@ object DirectDualSenseBt {
     @Volatile private var primed = false
     @Volatile private var audioRouteArmed = false
     @Volatile private var nextAudioDeadlineNs = 0L
+    // The audio config bytes of each report. They set how much the controller holds back: 0x80 felt like almost a second of delay.
+    @Volatile private var audioBufferBytes = -1
+    @Volatile private var audioFramesPerReport = 2
+    @Volatile private var motorPowerReduction = 3
+    private var pairWaits = 0
+    private var audioWaitWindow = 0
+    private var audioHoleWindow = 0
+    private var audioEmptyWindow = 0
+    // No speaker sound at all: small haptics reports, and silence keeps flowing so that the controller's decoder never restarts.
+    @Volatile private var hapticsOnlyTransport = false
     @Volatile private var lastNativeAudioAtNs = 0L
     @Volatile private var activeAudioSource = AudioSource.NONE
     @Volatile private var lastCombinedAudioAtNs = 0L
@@ -163,6 +173,15 @@ object DirectDualSenseBt {
         return description.contains("bluetoothAddress=", ignoreCase = true) ||
             device.descriptor.contains("bluetooth", ignoreCase = true) ||
             device.name.contains("Wireless Controller", ignoreCase = true)
+    }
+
+    /** The host's trigger force setting. */
+    @JvmStatic fun setMotorPowerReduction(context: Context, steps: Int) {
+        val wanted = steps.coerceIn(0, 7)
+        if (wanted == motorPowerReduction) return
+        motorPowerReduction = wanted
+        LimeLog.info("Direct DualSense BT motor power reduction: $wanted")
+        sendState(context)
     }
 
     @JvmStatic fun sendRumble(context: Context, low: Short, high: Short): Boolean {
@@ -345,6 +364,14 @@ object DirectDualSenseBt {
         // A detected direct headset is an explicit physical route and may be
         // used even if the bridge's global priority flag is stale/also active.
         if (!isConnected(context) && !headsetRoute) return false
+        if (audioBufferBytes < 0) {
+            audioBufferBytes = android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getString("dualsense_hd_buffer", "8")?.toIntOrNull()?.coerceIn(0, 0xff) ?: 8
+            audioFramesPerReport = android.preference.PreferenceManager.getDefaultSharedPreferences(context)
+                .getString("dualsense_hd_frames", "2")?.toIntOrNull()?.coerceIn(1, 2) ?: 2
+            LimeLog.info("Direct DualSense BT controller buffer: $audioBufferBytes, frames per report: $audioFramesPerReport")
+        }
+        hapticsOnlyTransport = speakerOpus == null && !speakerOnly
         audioReceivedWindow.incrementAndGet()
         val nowNs = SystemClock.elapsedRealtimeNanos()
         val source = if (speakerOnly) AudioSource.STANDALONE else AudioSource.COMBINED
@@ -383,7 +410,7 @@ object DirectDualSenseBt {
             else haptics.copyInto(payload.haptics)
             // A missing speaker packet must never repeat old media. Combined
             // transport uses a real encoded CELT-stereo silence frame instead.
-            val speaker = speakerOpus ?: encodedSilence
+            val speaker = speakerOpus ?: if (hapticsOnlyTransport) null else encodedSilence
             payload.hasSpeaker = speaker != null
             if (speaker != null) speaker.copyInto(payload.speaker)
             payload.source = source
@@ -481,6 +508,7 @@ object DirectDualSenseBt {
         micLed = microphoneMuted,
         leftRumble = leftRumble,
         rightRumble = rightRumble,
+        motorPowerReduction = motorPowerReduction,
         leftTriggerEffect = leftTrigger.copyOf(),
         rightTriggerEffect = rightTrigger.copyOf(),
     )
@@ -507,6 +535,17 @@ object DirectDualSenseBt {
     }
 
     private fun drainAudio() {
+        // A report wants two frames, and they arrive in pairs a little apart. A short wait beats a silent half report.
+        if (hapticsOnlyTransport && audioFramesPerReport == 2) {
+            val waiting = synchronized(audioQueueLock) { audioQueue.size == 1 }
+            if (waiting && pairWaits < 4) {
+                pairWaits++
+                audioWaitWindow++
+                writer.schedule(::drainAudio, 2_000_000L, TimeUnit.NANOSECONDS)
+                return
+            }
+        }
+        pairWaits = 0
         val drainStartNs = SystemClock.elapsedRealtimeNanos()
         if (lastAudioDrainStartNs != 0L) {
             audioMaxDrainGapWindowNs = maxOf(audioMaxDrainGapWindowNs,
@@ -516,16 +555,24 @@ object DirectDualSenseBt {
         val freshPayload = synchronized(audioQueueLock) {
             if (audioQueue.isNotEmpty()) audioQueue.removeFirst() else null
         }
+        val twoFrames = hapticsOnlyTransport && audioFramesPerReport == 2
+        val secondPayload = if (twoFrames && freshPayload != null) synchronized(audioQueueLock) {
+            if (audioQueue.isNotEmpty()) audioQueue.removeFirst() else null
+        } else null
+        val reportPeriodNs = if (twoFrames) AUDIO_REPORT_PERIOD_NS * 2 else AUDIO_REPORT_PERIOD_NS
+        if (twoFrames && freshPayload != null && secondPayload == null) audioHoleWindow++
+        if (freshPayload == null) audioEmptyWindow++
         val audioStillActive = lastNativeAudioAtNs != 0L &&
             drainStartNs - lastNativeAudioAtNs < NATIVE_AUDIO_ACTIVE_GRACE_NS
         // Never repeat old media during an underrun. Keep the controller decoder
         // on its existing CELT-stereo stream with one genuinely encoded silence
         // packet and silent haptics until the producer recovers.
-        val underrunSilence = if (freshPayload == null && audioStillActive) encodedSilence else null
-        if (freshPayload != null || underrunSilence != null) {
+        val underrunSilence = if (freshPayload == null && audioStillActive && !hapticsOnlyTransport) encodedSilence else null
+        if (freshPayload != null || underrunSilence != null || (audioStillActive && hapticsOnlyTransport)) {
             if (!armAudioRoute()) {
-                if (freshPayload != null) synchronized(audioQueueLock) {
-                    recycleAudioPayloadLocked(freshPayload)
+                synchronized(audioQueueLock) {
+                    if (freshPayload != null) recycleAudioPayloadLocked(freshPayload)
+                    if (secondPayload != null) recycleAudioPayloadLocked(secondPayload)
                 }
                 audioDrainScheduled.set(false)
                 return
@@ -534,7 +581,16 @@ object DirectDualSenseBt {
             // Some vendor implementations accept the larger two-frame write but do
             // not deliver it to the controller, so sendData() cannot detect failure.
             val speaker = if (freshPayload?.hasSpeaker == true) freshPayload.speaker else underrunSilence
-            val report = DualSenseBtAudioBuilder.write(
+            val report = if (twoFrames) DualSenseBtAudioBuilder.writeTwoHapticsFrames(
+                report = hapticsReport,
+                first = freshPayload?.haptics ?: silentHaptics,
+                second = secondPayload?.haptics ?: silentHaptics,
+                sequence = nextOutputSequence(),
+                packetCounter = audioSequence++ and 0xff,
+                microphoneEnabled = microphoneCaptureEnabled,
+                latencyScale = audioBufferBytes.coerceAtLeast(0),
+                crc = audioReportCrc,
+            ) else DualSenseBtAudioBuilder.write(
                 report = if (speaker != null) audioReport else hapticsReport,
                 haptics = freshPayload?.haptics ?: silentHaptics,
                 sequence = nextOutputSequence(),
@@ -542,7 +598,7 @@ object DirectDualSenseBt {
                 speakerOpus = speaker,
                 headsetRoute = headsetRoute,
                 microphoneEnabled = microphoneCaptureEnabled,
-                latencyScale = AUDIO_LATENCY_SCALE,
+                latencyScale = audioBufferBytes.coerceAtLeast(0),
                 crc = audioReportCrc,
             )
             val sendStartNs = SystemClock.elapsedRealtimeNanos()
@@ -554,8 +610,9 @@ object DirectDualSenseBt {
             audioSendTimeWindowNs += sendTimeNs
             audioMaxSendTimeWindowNs = maxOf(audioMaxSendTimeWindowNs, sendTimeNs)
             logAudioTransportDiagnostics(SystemClock.elapsedRealtimeNanos())
-            if (freshPayload != null) synchronized(audioQueueLock) {
-                recycleAudioPayloadLocked(freshPayload)
+            synchronized(audioQueueLock) {
+                if (freshPayload != null) recycleAudioPayloadLocked(freshPayload)
+                if (secondPayload != null) recycleAudioPayloadLocked(secondPayload)
             }
         }
         val queueNotEmpty = synchronized(audioQueueLock) { audioQueue.isNotEmpty() }
@@ -564,7 +621,7 @@ object DirectDualSenseBt {
             val currentDeadlineNs = if (nextAudioDeadlineNs == 0L) {
                 drainStartNs
             } else nextAudioDeadlineNs
-            var followingDeadlineNs = currentDeadlineNs + AUDIO_REPORT_PERIOD_NS
+            var followingDeadlineNs = currentDeadlineNs + reportPeriodNs
             var skippedSlots = 0
 
             // Stay on the original report grid. Only enter resync when the next
@@ -573,13 +630,13 @@ object DirectDualSenseBt {
             // a slot really is missed, advance by whole periods until at least
             // one complete period is ahead and discard the matching old frames.
             if (followingDeadlineNs <= sendFinishedNs) {
-                val safeDeadlineNs = sendFinishedNs + AUDIO_REPORT_PERIOD_NS
+                val safeDeadlineNs = sendFinishedNs + reportPeriodNs
                 while (followingDeadlineNs < safeDeadlineNs) {
-                    followingDeadlineNs += AUDIO_REPORT_PERIOD_NS
+                    followingDeadlineNs += reportPeriodNs
                     skippedSlots++
                 }
             }
-            if (skippedSlots > 0) dropSkippedAudioSlots(skippedSlots)
+            if (skippedSlots > 0) dropSkippedAudioSlots(if (twoFrames) skippedSlots * 2 else skippedSlots)
             nextAudioDeadlineNs = followingDeadlineNs
             writer.schedule(::drainAudio,
                 (followingDeadlineNs - sendFinishedNs).coerceAtLeast(0L), TimeUnit.NANOSECONDS)
@@ -627,9 +684,17 @@ object DirectDualSenseBt {
         val sent = audioSentWindow
         val received = audioReceivedWindow.getAndSet(0)
         val averageUs = if (sent == 0) 0L else audioSendTimeWindowNs / sent / 1_000L
+        val summary = "rx=$received tx=$sent dropped=${audioOverwrittenWindow.get()} failed=$audioFailedWindow " +
+            "wait=$audioWaitWindow hole=$audioHoleWindow empty=$audioEmptyWindow slow=$audioSlowWindow " +
+            "avgUs=$averageUs maxUs=${audioMaxSendTimeWindowNs / 1_000L} gapUs=${audioMaxDrainGapWindowNs / 1_000L} " +
+            "frames=$audioFramesPerReport buf=$audioBufferBytes"
+        com.limelight.nvstream.jni.MoonBridge.sendBluetoothDiagnostics(summary.toByteArray())
+        audioWaitWindow = 0
+        audioHoleWindow = 0
+        audioEmptyWindow = 0
         LimeLog.info("Direct DualSense BT transport: received=$received " +
             "overwritten=${audioOverwrittenWindow.getAndSet(0)} sent=$sent failed=$audioFailedWindow " +
-            "profile=ABSOLUTE_GRID latency=0x${AUDIO_LATENCY_SCALE.toString(16)} " +
+            "profile=ABSOLUTE_GRID latency=0x${audioBufferBytes.coerceAtLeast(0).toString(16)} " +
             "slow5ms=$audioSlowWindow avgSendUs=$averageUs " +
             "maxSendUs=${audioMaxSendTimeWindowNs / 1_000L} " +
             "maxDrainGapUs=${audioMaxDrainGapWindowNs / 1_000L}")
@@ -671,9 +736,8 @@ object DirectDualSenseBt {
     }
 
     private const val AUDIO_REPORT_PERIOD_NS = 10_666_667L
-    private const val AUDIO_LATENCY_SCALE = 0x80
-    private const val AUDIO_START_FRAMES = 4
-    private const val AUDIO_QUEUE_CAPACITY = 8
+    private const val AUDIO_START_FRAMES = 3
+    private const val AUDIO_QUEUE_CAPACITY = 6
     private const val AUDIO_PAYLOAD_POOL_SIZE = AUDIO_QUEUE_CAPACITY + 2
     private const val COMBINED_ROUTE_RELEASE_NS = AUDIO_REPORT_PERIOD_NS * 8L
     private const val STATE_INTERVAL_IDLE_NS = 16_000_000L
