@@ -91,9 +91,6 @@ object DirectDualSenseBt {
     @Volatile private var audioFramesPerReport = 2
     @Volatile private var motorPowerReduction = 3
     private var pairWaits = 0
-    private var audioWaitWindow = 0
-    private var audioHoleWindow = 0
-    private var audioEmptyWindow = 0
     // No speaker sound at all: small haptics reports, and silence keeps flowing so that the controller's decoder never restarts.
     @Volatile private var hapticsOnlyTransport = false
     @Volatile private var lastNativeAudioAtNs = 0L
@@ -540,7 +537,6 @@ object DirectDualSenseBt {
             val waiting = synchronized(audioQueueLock) { audioQueue.size == 1 }
             if (waiting && pairWaits < 4) {
                 pairWaits++
-                audioWaitWindow++
                 writer.schedule(::drainAudio, 2_000_000L, TimeUnit.NANOSECONDS)
                 return
             }
@@ -560,8 +556,6 @@ object DirectDualSenseBt {
             if (audioQueue.isNotEmpty()) audioQueue.removeFirst() else null
         } else null
         val reportPeriodNs = if (twoFrames) AUDIO_REPORT_PERIOD_NS * 2 else AUDIO_REPORT_PERIOD_NS
-        if (twoFrames && freshPayload != null && secondPayload == null) audioHoleWindow++
-        if (freshPayload == null) audioEmptyWindow++
         val audioStillActive = lastNativeAudioAtNs != 0L &&
             drainStartNs - lastNativeAudioAtNs < NATIVE_AUDIO_ACTIVE_GRACE_NS
         // Never repeat old media during an underrun. Keep the controller decoder
@@ -684,14 +678,6 @@ object DirectDualSenseBt {
         val sent = audioSentWindow
         val received = audioReceivedWindow.getAndSet(0)
         val averageUs = if (sent == 0) 0L else audioSendTimeWindowNs / sent / 1_000L
-        val summary = "rx=$received tx=$sent dropped=${audioOverwrittenWindow.get()} failed=$audioFailedWindow " +
-            "wait=$audioWaitWindow hole=$audioHoleWindow empty=$audioEmptyWindow slow=$audioSlowWindow " +
-            "avgUs=$averageUs maxUs=${audioMaxSendTimeWindowNs / 1_000L} gapUs=${audioMaxDrainGapWindowNs / 1_000L} " +
-            "frames=$audioFramesPerReport buf=$audioBufferBytes"
-        com.limelight.nvstream.jni.MoonBridge.sendBluetoothDiagnostics(summary.toByteArray())
-        audioWaitWindow = 0
-        audioHoleWindow = 0
-        audioEmptyWindow = 0
         LimeLog.info("Direct DualSense BT transport: received=$received " +
             "overwritten=${audioOverwrittenWindow.getAndSet(0)} sent=$sent failed=$audioFailedWindow " +
             "profile=ABSOLUTE_GRID latency=0x${audioBufferBytes.coerceAtLeast(0).toString(16)} " +

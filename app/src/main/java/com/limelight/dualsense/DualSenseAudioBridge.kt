@@ -191,30 +191,16 @@ object DualSenseAudioBridge {
         if (!allowed && initialized) stop()
     }
 
-    private var callsSeen = 0L
-    private var directSeen = 0L
-    private var soundSeen = 0L
-    private var lastShape = "none"
-
-    /** What arrived and where it went, for the host's log. */
-    @JvmStatic @Synchronized fun counters(): String =
-        "calls=$callsSeen direct=$directSeen sound=$soundSeen shape=$lastShape allowed=$networkAllowed init=$initialized " +
-            "mode=$mode bt=$btNativeReports drop=$btNativeDrops connected=${initialized && DirectDualSenseBt.isConnected(appContext)}"
-
     @JvmStatic @Synchronized fun receive(controller: Int, sequence: Int, frameCount: Int,
                                          channels: Int, flags: Int, pcm: ByteArray?) {
-        callsSeen++
-        lastShape = "$frameCount/$channels/$flags/${pcm?.size ?: -1}"
         // ProsperoSunshine's direct form: two frames as the controller takes them, nothing to resample.
         if (flags == DIRECT_HAPTICS_FLAG && channels == 2 && frameCount == 32 && pcm != null && pcm.size == 128) {
-            directSeen++
             if (!networkAllowed || !initialized || mode == "off") return
             packetsReceived++
             lastPacketAtMs = SystemClock.elapsedRealtime()
             streamActive = true
             // Long silence sends nothing, so that a queue in the Bluetooth stack can drain and triggers stay quick.
             if (pcm.all { it == 0.toByte() }) return
-            soundSeen++
             lastNativeBtReportAtMs = lastPacketAtMs
             for (offset in intArrayOf(0, 64)) {
                 val sent = DirectDualSenseBt.sendNativeAudio(appContext, pcm.copyOfRange(offset, offset + 64), null)

@@ -284,19 +284,6 @@ Java_com_limelight_nvstream_jni_MoonBridge_sendDualSenseFeedbackPolicy(JNIEnv *e
 }
 
 JNIEXPORT jint JNICALL
-Java_com_limelight_nvstream_jni_MoonBridge_sendBluetoothDiagnostics(JNIEnv *env, jclass clazz,
-                                                                    jbyteArray text) {
-    if (text == NULL) return -1;
-    jsize length = (*env)->GetArrayLength(env, text);
-    if (length <= 0 || length > 240) return -1;
-    jbyte* data = (*env)->GetByteArrayElements(env, text, NULL);
-    if (data == NULL) return -1;
-    int result = LiSendRawControlStreamPacket(0x5507, data, length);
-    (*env)->ReleaseByteArrayElements(env, text, data, JNI_ABORT);
-    return result;
-}
-
-JNIEXPORT jint JNICALL
 Java_com_limelight_nvstream_jni_MoonBridge_sendMicrophonePacket(JNIEnv *env, jclass clazz,
                                                                   jbyteArray packet) {
     if (packet == NULL) return -1;

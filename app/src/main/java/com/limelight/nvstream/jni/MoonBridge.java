@@ -421,8 +421,6 @@ public class MoonBridge {
     public static native int sendMicrophonePacket(byte[] packet);
     public static native int sendDualSenseFeedbackPolicy(boolean enabled, int requestId);
 
-    public static native int sendBluetoothDiagnostics(byte[] text);
-
     public static native String getStageName(int stage);
 
     public static native String findExternalAddressIP4(String stunHostName, int stunPort);

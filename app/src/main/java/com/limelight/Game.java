@@ -181,7 +181,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
     private boolean nativeFeedbackRequested;
     private volatile int nativeFeedbackRequestId;
     private long nativeFeedbackLastSentMs;
-    private long nativeFeedbackLastReportMs;
     private volatile long nativeFeedbackLastAckMs;
     private volatile boolean nativeFeedbackAckEnabled;
     private final Runnable nativeFeedbackTick = new Runnable() {
@@ -204,11 +203,6 @@ public class Game extends AppCompatActivity implements SurfaceHolder.Callback,
             }
             DualSenseAudioBridge.setNetworkAllowed(enabled && nativeFeedbackAckEnabled &&
                     now - nativeFeedbackLastAckMs < 6000);
-            if (now - nativeFeedbackLastReportMs >= 2000) {
-                nativeFeedbackLastReportMs = now;
-                String report = "v12 want=" + enabled + " ack=" + nativeFeedbackAckEnabled + " " + DualSenseAudioBridge.counters();
-                MoonBridge.sendBluetoothDiagnostics(report.getBytes());
-            }
             timerHandler.postDelayed(this, 500);
         }
     };
