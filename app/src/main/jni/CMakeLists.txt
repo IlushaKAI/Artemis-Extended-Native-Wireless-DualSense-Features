@@ -2,6 +2,9 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project(moonlight-helios)
 
+# Keep the build machine's paths out of the libraries.
+add_compile_options(-ffile-prefix-map=${CMAKE_CURRENT_LIST_DIR}=.)
+
 # Import NDK modules
 include(AndroidNdkModules)
 android_ndk_import_module_cpufeatures()
